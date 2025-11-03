@@ -14,8 +14,6 @@ require (
 	github.com/oapi-codegen/oapi-codegen/v2 v2.5.1
 )
 
-replace github.com/oapi-codegen/oapi-codegen/v2 => github.com/booleanism/oapi-codegen/v2 v2.5.1-p1
-
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
