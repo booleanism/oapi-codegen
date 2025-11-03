@@ -1,4 +1,4 @@
-module github.com/oapi-codegen/oapi-codegen/v2
+module github.com/booleanism/oapi-codegen/v2
 
 go 1.22.5
 
@@ -11,7 +11,10 @@ require (
 	golang.org/x/tools v0.25.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
+	github.com/oapi-codegen/oapi-codegen/v2 v2.5.1
 )
+
+replace github.com/oapi-codegen/oapi-codegen/v2 => github.com/booleanism/oapi-codegen/v2 v2.5.1-p1
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
