@@ -4,7 +4,7 @@ go 1.22.5
 
 replace github.com/oapi-codegen/oapi-codegen/v2 => ../../../
 
-require github.com/oapi-codegen/oapi-codegen/v2 v2.0.0-00010101000000-000000000000
+require github.com/oapi-codegen/oapi-codegen/v2 v2.5.1
 
 require (
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
