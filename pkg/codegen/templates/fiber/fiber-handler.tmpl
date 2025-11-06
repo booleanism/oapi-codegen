@@ -1,3 +1,11 @@
+type OpName = string
+
+const (
+  {{range .}}
+  OpNameValue{{.OperationId}} OpName = "{{.OperationId}}"
+  {{end}}
+)
+
 // FiberServerOptions provides options for the Fiber server.
 type FiberServerOptions struct {
     BaseURL string
@@ -5,21 +13,24 @@ type FiberServerOptions struct {
 }
 
 // RegisterHandlers creates http.Handler with routing matching OpenAPI spec.
-func RegisterHandlers(router fiber.Router, si ServerInterface) {
-  RegisterHandlersWithOptions(router, si, FiberServerOptions{})
+func RegisterHandlers(router fiber.Router, si ServerInterface, hs map[OpName][]fiber.Handler, errFn func(c fiber.Ctx, err error) error) {
+  RegisterHandlersWithOptions(router, si, FiberServerOptions{}, hs, errFn)
 }
 
 // RegisterHandlersWithOptions creates http.Handler with additional options
-func RegisterHandlersWithOptions(router fiber.Router, si ServerInterface, options FiberServerOptions) {
+func RegisterHandlersWithOptions(router fiber.Router, si ServerInterface, options FiberServerOptions, hs map[OpName][]fiber.Handler, errFn func(c fiber.Ctx, err error) error) {
 {{if .}}wrapper := ServerInterfaceWrapper{
 Handler: si,
+ErrFn: errFn,
 }
 
 for _, m := range options.Middlewares {
     router.Use(fiber.Handler(m))
 }
+
 {{end}}
 {{range .}}
-router.{{.Method | lower | title }}(options.BaseURL+"{{.Path | swaggerUriToFiberUri}}", wrapper.{{.OperationId}})
+hs{{.OperationId}} := append(hs["{{.OperationId}}"], wrapper.{{.OperationId}})
+router.{{.Method | lower | title }}(options.BaseURL+"{{.Path | swaggerUriToFiberUri}}", hs{{.OperationId}}[0], hs{{.OperationId}}[1:]...)
 {{end}}
 }

@@ -198,9 +198,53 @@ func DescribeParameters(params openapi3.Parameters, path []string) ([]ParameterD
 type SecurityDefinition struct {
 	ProviderName string
 	Scopes       []string
+	Scheme       string
+	Optional     bool
 }
 
-func DescribeSecurityDefinition(securityRequirements openapi3.SecurityRequirements) []SecurityDefinition {
+func describeSecurityScheme(swagger *openapi3.T, reqPath, opName string) []SecurityDefinition {
+	outDefs := make([]SecurityDefinition, 0)
+
+	pathItem := swagger.Paths.Value(reqPath)
+	pathOps := pathItem.Operations()
+	op := pathOps[opName]
+	if op.Security != nil {
+		secSchemeIter(*op.Security, &outDefs, func() *openapi3.T {
+			return swagger
+		})
+		return outDefs
+	}
+
+	secSchemeIter(swagger.Security, &outDefs, func() *openapi3.T {
+		return swagger
+	})
+
+	return outDefs
+}
+
+func secSchemeIter(srs openapi3.SecurityRequirements, out *[]SecurityDefinition, fn func() *openapi3.T) {
+	o := fn()
+	var opt = false
+	for _, sr := range srs {
+		if len(sr) == 0 && len(srs) > 1 {
+			opt = true
+		}
+		for _, k := range SortedMapKeys(sr) {
+			v := sr[k]
+			s := ""
+			if len(o.Components.SecuritySchemes) != 0 && len(v) == 0 {
+				s = o.Components.SecuritySchemes[k].Value.Scheme
+			}
+			*out = append(*out, SecurityDefinition{ProviderName: k, Scopes: v, Scheme: s, Optional: opt})
+		}
+	}
+
+	for i := range *out {
+		(*out)[i].Optional = opt
+	}
+}
+
+func DescribeSecurityDefinition(swagger *openapi3.T, securityRequirements openapi3.SecurityRequirements) []SecurityDefinition {
 	outDefs := make([]SecurityDefinition, 0)
 
 	for _, sr := range securityRequirements {
@@ -649,16 +693,12 @@ func OperationDefinitions(swagger *openapi3.T, initialismOverrides bool) ([]Oper
 			// check for overrides of SecurityDefinitions.
 			// See: "Step 2. Applying security:" from the spec:
 			// https://swagger.io/docs/specification/authentication/
-			if op.Security != nil {
-				opDef.SecurityDefinitions = DescribeSecurityDefinition(*op.Security)
-			} else {
-				// use global securityDefinitions
-				// globalSecurityDefinitions contains the top-level securityDefinitions.
-				// They are the default securityPermissions which are injected into each
-				// path, except for the case where a path explicitly overrides them.
-				opDef.SecurityDefinitions = DescribeSecurityDefinition(swagger.Security)
-
-			}
+			opDef.SecurityDefinitions = describeSecurityScheme(swagger, requestPath, opName)
+			// use global securityDefinitions
+			// globalSecurityDefinitions contains the top-level securityDefinitions.
+			// They are the default securityPermissions which are injected into each
+			// path, except for the case where a path explicitly overrides them.
+			// opDef.SecurityDefinitions = describeSecurityScheme(swagger)
 
 			if op.RequestBody != nil {
 				opDef.BodyRequired = op.RequestBody.Value.Required

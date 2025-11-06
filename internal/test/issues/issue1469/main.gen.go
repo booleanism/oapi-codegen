@@ -17,6 +17,7 @@ type ServerInterface interface {
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler ServerInterface
+	ErrFn   func(c fiber.Ctx, err error) error
 }
 
 type MiddlewareFunc fiber.Handler
@@ -27,6 +28,12 @@ func (siw *ServerInterfaceWrapper) Test(c fiber.Ctx) error {
 	return siw.Handler.Test(c)
 }
 
+type OpName = string
+
+const (
+	OpNameValueTest OpName = "Test"
+)
+
 // FiberServerOptions provides options for the Fiber server.
 type FiberServerOptions struct {
 	BaseURL     string
@@ -34,20 +41,22 @@ type FiberServerOptions struct {
 }
 
 // RegisterHandlers creates http.Handler with routing matching OpenAPI spec.
-func RegisterHandlers(router fiber.Router, si ServerInterface) {
-	RegisterHandlersWithOptions(router, si, FiberServerOptions{})
+func RegisterHandlers(router fiber.Router, si ServerInterface, hs map[OpName][]fiber.Handler, errFn func(c fiber.Ctx, err error) error) {
+	RegisterHandlersWithOptions(router, si, FiberServerOptions{}, hs, errFn)
 }
 
 // RegisterHandlersWithOptions creates http.Handler with additional options
-func RegisterHandlersWithOptions(router fiber.Router, si ServerInterface, options FiberServerOptions) {
+func RegisterHandlersWithOptions(router fiber.Router, si ServerInterface, options FiberServerOptions, hs map[OpName][]fiber.Handler, errFn func(c fiber.Ctx, err error) error) {
 	wrapper := ServerInterfaceWrapper{
 		Handler: si,
+		ErrFn:   errFn,
 	}
 
 	for _, m := range options.Middlewares {
 		router.Use(fiber.Handler(m))
 	}
 
-	router.Get(options.BaseURL+"/test", wrapper.Test)
+	hsTest := append(hs["Test"], wrapper.Test)
+	router.Get(options.BaseURL+"/test", hsTest[0], hsTest[1:]...)
 
 }

@@ -20,7 +20,9 @@ func TestIssue1469(t *testing.T) {
 	r := fiber.New()
 
 	assert.NotPanics(t, func() {
-		RegisterHandlers(r, server)
+		RegisterHandlers(r, server, map[OpName][]fiber.Handler{}, func(c fiber.Ctx, err error) error {
+			return fiber.NewError(fiber.StatusBadRequest, "oops from gen middleware")
+		})
 	})
 
 	assert.NotPanics(t, func() {
@@ -30,6 +32,8 @@ func TestIssue1469(t *testing.T) {
 					return nil
 				},
 			},
+		}, map[OpName][]fiber.Handler{}, func(c fiber.Ctx, err error) error {
+			return fiber.NewError(fiber.StatusBadRequest, "oops from gen middleware")
 		})
 	})
 }

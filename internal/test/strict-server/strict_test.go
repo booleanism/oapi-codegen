@@ -3,6 +3,7 @@ package strictserver
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -67,7 +68,9 @@ func TestFiberServer(t *testing.T) {
 	server := fiberAPI.StrictServer{}
 	strictHandler := fiberAPI.NewStrictHandler(server, nil)
 	r := fiber.New()
-	fiberAPI.RegisterHandlers(r, strictHandler)
+	fiberAPI.RegisterHandlers(r, strictHandler, map[fiberAPI.OpName][]fiber.Handler{}, func(c fiber.Ctx, err error) error {
+		return fiber.NewError(fiber.StatusBadRequest, "oops from gen middleware")
+	})
 	testImpl(t, adaptor.FiberApp(r))
 }
 

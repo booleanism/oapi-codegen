@@ -66,6 +66,7 @@ type ServerInterface interface {
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler ServerInterface
+	ErrFn   func(c fiber.Ctx, err error) error
 }
 
 type MiddlewareFunc fiber.Handler
@@ -104,7 +105,8 @@ func (siw *ServerInterfaceWrapper) ReservedGoKeywordParameters(c fiber.Ctx) erro
 
 	err = runtime.BindStyledParameterWithOptions("simple", "type", c.Params("type"), &pType, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("Invalid format for parameter type: %w", err).Error())
+		return siw.ErrFn(c, err)
+		// return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("Invalid format for parameter type: %w", err).Error())
 	}
 
 	return siw.Handler.ReservedGoKeywordParameters(c, pType)
@@ -156,14 +158,14 @@ func (siw *ServerInterfaceWrapper) HeadersExample(c fiber.Ctx) error {
 
 		err = runtime.BindStyledParameterWithOptions("simple", "header1", value[len(value)-1], &Header1, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
 		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("Invalid format for parameter header1: %w", err).Error())
+			return siw.ErrFn(c, err)
 		}
 
 		params.Header1 = Header1
 
 	} else {
 		err = fmt.Errorf("Header parameter header1 is required, but not found: %w", err)
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		return siw.ErrFn(c, err)
 	}
 
 	// ------------- Optional header parameter "header2" -------------
@@ -172,7 +174,7 @@ func (siw *ServerInterfaceWrapper) HeadersExample(c fiber.Ctx) error {
 
 		err = runtime.BindStyledParameterWithOptions("simple", "header2", value[len(value)-1], &Header2, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
 		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("Invalid format for parameter header2: %w", err).Error())
+			return siw.ErrFn(c, err)
 		}
 
 		params.Header2 = &Header2
@@ -188,6 +190,34 @@ func (siw *ServerInterfaceWrapper) UnionExample(c fiber.Ctx) error {
 	return siw.Handler.UnionExample(c)
 }
 
+type OpName = string
+
+const (
+	OpNameValueJSONExample OpName = "JSONExample"
+
+	OpNameValueMultipartExample OpName = "MultipartExample"
+
+	OpNameValueMultipartRelatedExample OpName = "MultipartRelatedExample"
+
+	OpNameValueMultipleRequestAndResponseTypes OpName = "MultipleRequestAndResponseTypes"
+
+	OpNameValueReservedGoKeywordParameters OpName = "ReservedGoKeywordParameters"
+
+	OpNameValueReusableResponses OpName = "ReusableResponses"
+
+	OpNameValueTextExample OpName = "TextExample"
+
+	OpNameValueUnknownExample OpName = "UnknownExample"
+
+	OpNameValueUnspecifiedContentType OpName = "UnspecifiedContentType"
+
+	OpNameValueURLEncodedExample OpName = "URLEncodedExample"
+
+	OpNameValueHeadersExample OpName = "HeadersExample"
+
+	OpNameValueUnionExample OpName = "UnionExample"
+)
+
 // FiberServerOptions provides options for the Fiber server.
 type FiberServerOptions struct {
 	BaseURL     string
@@ -195,43 +225,56 @@ type FiberServerOptions struct {
 }
 
 // RegisterHandlers creates http.Handler with routing matching OpenAPI spec.
-func RegisterHandlers(router fiber.Router, si ServerInterface) {
-	RegisterHandlersWithOptions(router, si, FiberServerOptions{})
+func RegisterHandlers(router fiber.Router, si ServerInterface, hs map[OpName][]fiber.Handler, errFn func(c fiber.Ctx, err error) error) {
+	RegisterHandlersWithOptions(router, si, FiberServerOptions{}, hs, errFn)
 }
 
 // RegisterHandlersWithOptions creates http.Handler with additional options
-func RegisterHandlersWithOptions(router fiber.Router, si ServerInterface, options FiberServerOptions) {
+func RegisterHandlersWithOptions(router fiber.Router, si ServerInterface, options FiberServerOptions, hs map[OpName][]fiber.Handler, errFn func(c fiber.Ctx, err error) error) {
 	wrapper := ServerInterfaceWrapper{
 		Handler: si,
+		ErrFn:   errFn,
 	}
 
 	for _, m := range options.Middlewares {
 		router.Use(fiber.Handler(m))
 	}
 
-	router.Post(options.BaseURL+"/json", wrapper.JSONExample)
+	hsJSONExample := append(hs["JSONExample"], wrapper.JSONExample)
+	router.Post(options.BaseURL+"/json", hsJSONExample[0], hsJSONExample[1:]...)
 
-	router.Post(options.BaseURL+"/multipart", wrapper.MultipartExample)
+	hsMultipartExample := append(hs["MultipartExample"], wrapper.MultipartExample)
+	router.Post(options.BaseURL+"/multipart", hsMultipartExample[0], hsMultipartExample[1:]...)
 
-	router.Post(options.BaseURL+"/multipart-related", wrapper.MultipartRelatedExample)
+	hsMultipartRelatedExample := append(hs["MultipartRelatedExample"], wrapper.MultipartRelatedExample)
+	router.Post(options.BaseURL+"/multipart-related", hsMultipartRelatedExample[0], hsMultipartRelatedExample[1:]...)
 
-	router.Post(options.BaseURL+"/multiple", wrapper.MultipleRequestAndResponseTypes)
+	hsMultipleRequestAndResponseTypes := append(hs["MultipleRequestAndResponseTypes"], wrapper.MultipleRequestAndResponseTypes)
+	router.Post(options.BaseURL+"/multiple", hsMultipleRequestAndResponseTypes[0], hsMultipleRequestAndResponseTypes[1:]...)
 
-	router.Get(options.BaseURL+"/reserved-go-keyword-parameters/:type", wrapper.ReservedGoKeywordParameters)
+	hsReservedGoKeywordParameters := append(hs["ReservedGoKeywordParameters"], wrapper.ReservedGoKeywordParameters)
+	router.Get(options.BaseURL+"/reserved-go-keyword-parameters/:type", hsReservedGoKeywordParameters[0], hsReservedGoKeywordParameters[1:]...)
 
-	router.Post(options.BaseURL+"/reusable-responses", wrapper.ReusableResponses)
+	hsReusableResponses := append(hs["ReusableResponses"], wrapper.ReusableResponses)
+	router.Post(options.BaseURL+"/reusable-responses", hsReusableResponses[0], hsReusableResponses[1:]...)
 
-	router.Post(options.BaseURL+"/text", wrapper.TextExample)
+	hsTextExample := append(hs["TextExample"], wrapper.TextExample)
+	router.Post(options.BaseURL+"/text", hsTextExample[0], hsTextExample[1:]...)
 
-	router.Post(options.BaseURL+"/unknown", wrapper.UnknownExample)
+	hsUnknownExample := append(hs["UnknownExample"], wrapper.UnknownExample)
+	router.Post(options.BaseURL+"/unknown", hsUnknownExample[0], hsUnknownExample[1:]...)
 
-	router.Post(options.BaseURL+"/unspecified-content-type", wrapper.UnspecifiedContentType)
+	hsUnspecifiedContentType := append(hs["UnspecifiedContentType"], wrapper.UnspecifiedContentType)
+	router.Post(options.BaseURL+"/unspecified-content-type", hsUnspecifiedContentType[0], hsUnspecifiedContentType[1:]...)
 
-	router.Post(options.BaseURL+"/urlencoded", wrapper.URLEncodedExample)
+	hsURLEncodedExample := append(hs["URLEncodedExample"], wrapper.URLEncodedExample)
+	router.Post(options.BaseURL+"/urlencoded", hsURLEncodedExample[0], hsURLEncodedExample[1:]...)
 
-	router.Post(options.BaseURL+"/with-headers", wrapper.HeadersExample)
+	hsHeadersExample := append(hs["HeadersExample"], wrapper.HeadersExample)
+	router.Post(options.BaseURL+"/with-headers", hsHeadersExample[0], hsHeadersExample[1:]...)
 
-	router.Post(options.BaseURL+"/with-union", wrapper.UnionExample)
+	hsUnionExample := append(hs["UnionExample"], wrapper.UnionExample)
+	router.Post(options.BaseURL+"/with-union", hsUnionExample[0], hsUnionExample[1:]...)
 
 }
 
