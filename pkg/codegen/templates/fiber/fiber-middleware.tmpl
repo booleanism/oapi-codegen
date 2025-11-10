@@ -65,7 +65,7 @@ func (siw *ServerInterfaceWrapper) {{$opid}}(c fiber.Ctx) error {
       }
     {{end}}
 
-    c.Locals("{{.ProviderName}}", token)
+    c.Locals({{.ProviderName | ucFirst}}Scopes, token)
   {{else}}
     c.Locals({{.ProviderName | ucFirst}}Scopes, {{toStringArray .Scopes}})
   {{end}}
