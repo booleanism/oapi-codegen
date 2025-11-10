@@ -41,28 +41,28 @@ func (siw *ServerInterfaceWrapper) {{$opid}}(c fiber.Ctx) error {
 {{range .SecurityDefinitions}}
   {{if or (eq .Scheme "bearer") (eq .Scheme "basic")}}
     header := c.GetReqHeaders()
-    {{if not .Optional}}
+    var token string
     authHeader, ok := header["Authorization"]
-    if !ok { 
-        return siw.ErrFn(c, fmt.Errorf("Missing Authorization header"))
-    }
-    {{else}}
-      authHeader, _ := header["Authorization"]
-    {{end}}
 
     {{if not .Optional}}
+      if !ok { 
+          return siw.ErrFn(c, fmt.Errorf("Missing Authorization header"))
+      }
+    {{end}}
+
     if len(authHeader) > 1 { 
         return siw.ErrFn(c, fmt.Errorf("Ambigous Authorization header"))
     }
-    {{end}}
 
     {{if not .Optional}}
-    token, ok := strings.CutPrefix(authHeader[len(authHeader)-1], "{{.Scheme | title}} ")
-    if !ok { 
-        return siw.ErrFn(c, fmt.Errorf("Invalid Authorization scheme"))
-    }
+      token, ok = strings.CutPrefix(authHeader[0], "{{.Scheme | title}} ")
+      if !ok { 
+          return siw.ErrFn(c, fmt.Errorf("Invalid Authorization scheme"))
+      }
     {{else}}
-    token, _ := strings.CutPrefix(authHeader[len(authHeader)-1], "{{.Scheme | title}} ")
+      if ok {
+        token, _ = strings.CutPrefix(authHeader[len(authHeader)-1], "{{.Scheme | title}} ")
+      }
     {{end}}
 
     c.Locals("{{.ProviderName}}", token)
